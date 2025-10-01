@@ -10,158 +10,153 @@ def fetch_economic_calendar():
     url = "https://nfs.faireconomy.media/ff_calendar_thisweek.csv"
     
     try:
-        print("Pobieranie danych z:", url)
         response = requests.get(url)
         response.raise_for_status()
         
-        # Użyj io.StringIO do wczytania CSV
         df = pd.read_csv(io.StringIO(response.text))
         
         print(f"Pobrano {len(df)} wydarzeń")
-        print("Przykładowe dane:")
-        print(df[['Title', 'Date', 'Time', 'Impact']].head(3))
         
-        # Konwersja daty i czasu z właściwego formatu
+        # Konwersja daty i czasu
         def parse_datetime(date_str, time_str):
             try:
-                # Połącz datę i czas
                 datetime_str = f"{date_str} {time_str}"
-                # Parsuj z właściwym formatem
                 return pd.to_datetime(datetime_str, format='%m-%d-%Y %I:%M%p')
             except Exception as e:
                 print(f"Błąd parsowania: {date_str} {time_str} - {e}")
                 return None
         
         df['DateTime'] = df.apply(lambda row: parse_datetime(row['Date'], row['Time']), axis=1)
-        
-        # Usuń wiersze z błędnymi datami
-        initial_count = len(df)
         df = df.dropna(subset=['DateTime'])
-        dropped_count = initial_count - len(df)
-        if dropped_count > 0:
-            print(f"Usunięto {dropped_count} wierszy z błędnymi datami")
-        
-        # Konwersja na timestamp
-        df['Timestamp'] = df['DateTime'].astype(int) // 10**9
         
         print(f"Poprawnie sparsowano {len(df)} wydarzeń")
         
-        # Przygotowanie danych dla TradingView
-        tv_data = []
-        for _, row in df.iterrows():
-            # Mapowanie ważności na wartości numeryczne
-            impact_value = {
-                'High': 3,
-                'Medium': 2, 
-                'Low': 1,
-                'Holiday': 0
-            }.get(row['Impact'], 1)
-            
-            tv_data.append({
-                'time': int(row['Timestamp']),
-                'open': impact_value,
-                'high': impact_value,
-                'low': impact_value,
-                'close': impact_value,
-                'volume': 0
-            })
-        
-        return tv_data
+        return df
         
     except Exception as e:
         print(f"Error fetching data: {e}")
         import traceback
         print(f"Traceback: {traceback.format_exc()}")
-        return []
+        return pd.DataFrame()
+
+def prepare_daily_data(df):
+    """Przygotowuje dane dzienne w formacie OHLCV dla TradingView"""
+    if df.empty:
+        return pd.DataFrame()
+    
+    # Mapowanie ważności na wartości numeryczne
+    impact_mapping = {
+        'High': 3,
+        'Medium': 2, 
+        'Low': 1,
+        'Holiday': 0
+    }
+    
+    df['ImpactValue'] = df['Impact'].map(impact_mapping).fillna(1)
+    
+    # Grupowanie według daty (bez czasu)
+    df['DateOnly'] = df['DateTime'].dt.date
+    
+    # Dla każdego dnia znajdujemy maksymalną ważność wydarzenia
+    daily_data = df.groupby('DateOnly').agg({
+        'ImpactValue': 'max'
+    }).reset_index()
+    
+    # Tworzymy dane OHLCV - wszystkie wartości takie same (maksymalna ważność dnia)
+    daily_data['open'] = daily_data['ImpactValue']
+    daily_data['high'] = daily_data['ImpactValue']
+    daily_data['low'] = daily_data['ImpactValue']
+    daily_data['close'] = daily_data['ImpactValue']
+    daily_data['volume'] = 0
+    
+    # Format daty do YYYYMMDDT
+    daily_data['date'] = daily_data['DateOnly'].apply(lambda x: x.strftime('%Y%m%dT'))
+    
+    # Sortowanie według daty
+    daily_data = daily_data.sort_values('date')
+    
+    return daily_data[['date', 'open', 'high', 'low', 'close', 'volume']]
+
+def save_symbol_info():
+    """Tworzy plik symbol_info.json"""
+    symbol_info = {
+        "symbol": ["ECONOMIC_CALENDAR"],
+        "description": ["Economic Calendar Impact Events"],
+        "pricescale": 1
+    }
+    
+    os.makedirs('symbol_info', exist_ok=True)
+    
+    with open('symbol_info/seed_economic_calendar.json', 'w') as f:
+        json.dump(symbol_info, f, indent=2)
+    
+    print("Utworzono plik symbol_info.json")
 
 def save_to_csv(data, filename="data/ECONOMIC_CALENDAR.csv"):
     """Zapisuje dane do formatu CSV dla TradingView"""
-    if not data:
+    if data.empty:
         print("Brak danych do zapisania!")
         return None
         
-    df = pd.DataFrame(data)
-    
-    # Sortowanie według czasu
-    df = df.sort_values('time')
-    
-    # Sprawdź czy folder data istnieje
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    
-    # Zapis do CSV
-    df.to_csv(filename, index=False)
-    print(f"Zapisano {len(df)} wydarzeń do {filename}")
+    # Zapis do CSV bez nagłówka i indeksu
+    data.to_csv(filename, index=False, header=False)
+    print(f"Zapisano {len(data)} dni danych do {filename}")
     
     # Sprawdź czy plik został utworzony
     if os.path.exists(filename):
         file_size = os.path.getsize(filename)
         print(f"Plik {filename} utworzony pomyślnie, rozmiar: {file_size} bajtów")
         
-        # Wyświetl przykładowe dane z zapisanego pliku
-        try:
-            saved_df = pd.read_csv(filename)
-            print("Przykładowe dane z zapisanego pliku:")
-            print(saved_df.head(3))
-        except Exception as e:
-            print(f"Błąd przy odczycie zapisanego pliku: {e}")
+        # Wyświetl przykładowe dane
+        print("Przykładowe dane:")
+        print(data.head())
     else:
         print(f"BŁĄD: Plik {filename} nie został utworzony!")
     
-    return df
-
-def next_scheduled_update():
-    """Oblicza następną zaplanowaną aktualizację"""
-    now = datetime.now()
-    
-    # Jeśli dziś jest poniedziałek (0) lub środa (2) i przed 00:20
-    if now.weekday() in [0, 2] and (now.hour < 0 or (now.hour == 0 and now.minute < 20)):
-        return now.replace(hour=0, minute=20, second=0, microsecond=0)
-    
-    # Znajdź następny poniedziałek lub środę
-    days_ahead = 1
-    while True:
-        next_day = now + timedelta(days=days_ahead)
-        if next_day.weekday() in [0, 2]:  # Poniedziałek=0, Środa=2
-            return next_day.replace(hour=0, minute=20, second=0, microsecond=0)
-        days_ahead += 1
+    return data
 
 def update_repository():
     """Główna funkcja aktualizująca repozytorium"""
     print(f"Rozpoczynanie aktualizacji kalendarza - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("Harmonogram aktualizacji: Poniedziałek i Środa o 00:20 UTC")
     
-    # Sprawdź obecny stan folderu data
-    if os.path.exists("data/ECONOMIC_CALENDAR.csv"):
-        print("Znaleziono istniejący plik ECONOMIC_CALENDAR.csv")
-        try:
-            existing_df = pd.read_csv("data/ECONOMIC_CALENDAR.csv")
-            print(f"Obecny plik zawiera {len(existing_df)} wydarzeń")
-        except Exception as e:
-            print(f"Błąd przy odczycie istniejącego pliku: {e}")
+    # Utwórz strukturę katalogów
+    os.makedirs('symbol_info', exist_ok=True)
+    os.makedirs('data', exist_ok=True)
+    
+    # Utwórz plik symbol_info
+    save_symbol_info()
     
     # Pobierz dane
-    calendar_data = fetch_economic_calendar()
+    raw_data = fetch_economic_calendar()
     
-    if calendar_data:
+    if not raw_data.empty:
+        # Przygotuj dane dzienne
+        daily_data = prepare_daily_data(raw_data)
+        
         # Zapisz dane
-        df = save_to_csv(calendar_data)
-        
-        # Dodatkowo zapisz metadane
-        metadata = {
-            'last_updated': datetime.now().isoformat(),
-            'events_count': len(df),
-            'update_schedule': 'Every Monday and Wednesday at 00:20 UTC',
-            'next_scheduled_update': next_scheduled_update().isoformat()
-        }
-        
-        with open('data/metadata.json', 'w') as f:
-            json.dump(metadata, f, indent=2)
+        if not daily_data.empty:
+            df = save_to_csv(daily_data)
             
-        print("Aktualizacja zakończona pomyślnie!")
-        return True
+            # Dodatkowo zapisz metadane
+            metadata = {
+                'last_updated': datetime.now().isoformat(),
+                'days_count': len(daily_data),
+                'events_count': len(raw_data),
+                'data_format': 'OHLCV',
+                'impact_scale': '0=Holiday, 1=Low, 2=Medium, 3=High'
+            }
+            
+            with open('data/metadata.json', 'w') as f:
+                json.dump(metadata, f, indent=2)
+                
+            print("Aktualizacja zakończona pomyślnie!")
+            return True
+        else:
+            print("Brak danych do zapisania po przetworzeniu!")
     else:
         print("Nie udało się pobrać danych!")
-        return False
+    
+    return False
 
 if __name__ == "__main__":
     update_repository()
