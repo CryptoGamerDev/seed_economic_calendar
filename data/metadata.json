@@ -1,6 +1,6 @@
 {
-  "last_updated": "2025-10-01T20:45:53.734776",
+  "last_updated": "2025-10-01T20:54:03.207347",
   "events_count": 133,
-  "update_schedule": "Every Tuesday and Thursday at 06:00 UTC",
-  "next_scheduled_update": "2025-10-02T06:00:00"
+  "update_schedule": "Every Monday and Wednesday at 00:20 UTC",
+  "next_scheduled_update": "2025-10-06T00:20:00"
 }
