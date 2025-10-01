@@ -1,0 +1,38 @@
+name: Update Economic Calendar
+
+on:
+  schedule:
+    # Uruchamiaj co 6 godzin
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Ręczne uruchomienie
+
+jobs:
+  update-calendar:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        pip install -r scripts/requirements.txt
+        
+    - name: Run update script
+      run: |
+        python scripts/update_calendar.py
+        
+    - name: Commit and push changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add data/
+        git commit -m "Auto-update economic calendar data" || exit 0
+        git push
