@@ -2,6 +2,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta
 import json
+import io
 
 def fetch_economic_calendar():
     """Pobiera dane kalendarza ekonomicznego"""
@@ -11,8 +12,8 @@ def fetch_economic_calendar():
         response = requests.get(url)
         response.raise_for_status()
         
-        # Konwersja CSV na DataFrame
-        df = pd.read_csv(pd.compat.StringIO(response.text))
+        # POPRAWKA: Użyj io.StringIO zamiast pd.compat.StringIO
+        df = pd.read_csv(io.StringIO(response.text))
         
         # Konwersja daty i czasu
         df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%m-%d-%Y %I:%M%p')
