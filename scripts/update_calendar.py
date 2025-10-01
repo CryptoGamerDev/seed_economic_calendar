@@ -3,12 +3,14 @@ import pandas as pd
 from datetime import datetime, timedelta
 import json
 import io
+import os
 
 def fetch_economic_calendar():
     """Pobiera dane kalendarza ekonomicznego"""
     url = "https://nfs.faireconomy.media/ff_calendar_thisweek.csv"
     
     try:
+        print("Pobieranie danych z:", url)
         response = requests.get(url)
         response.raise_for_status()
         
@@ -17,10 +19,9 @@ def fetch_economic_calendar():
         
         print(f"Pobrano {len(df)} wydarzeń")
         print("Przykładowe dane:")
-        print(df.head(3))
+        print(df[['Title', 'Date', 'Time', 'Impact']].head(3))
         
         # Konwersja daty i czasu z właściwego formatu
-        # Format: "09-29-2025" (Date) i "7:00am" (Time)
         def parse_datetime(date_str, time_str):
             try:
                 # Połącz datę i czas
@@ -34,7 +35,11 @@ def fetch_economic_calendar():
         df['DateTime'] = df.apply(lambda row: parse_datetime(row['Date'], row['Time']), axis=1)
         
         # Usuń wiersze z błędnymi datami
+        initial_count = len(df)
         df = df.dropna(subset=['DateTime'])
+        dropped_count = initial_count - len(df)
+        if dropped_count > 0:
+            print(f"Usunięto {dropped_count} wierszy z błędnymi datami")
         
         # Konwersja na timestamp
         df['Timestamp'] = df['DateTime'].astype(int) // 10**9
@@ -80,9 +85,27 @@ def save_to_csv(data, filename="data/ECONOMIC_CALENDAR.csv"):
     # Sortowanie według czasu
     df = df.sort_values('time')
     
+    # Sprawdź czy folder data istnieje
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
     # Zapis do CSV
     df.to_csv(filename, index=False)
     print(f"Zapisano {len(df)} wydarzeń do {filename}")
+    
+    # Sprawdź czy plik został utworzony
+    if os.path.exists(filename):
+        file_size = os.path.getsize(filename)
+        print(f"Plik {filename} utworzony pomyślnie, rozmiar: {file_size} bajtów")
+        
+        # Wyświetl przykładowe dane z zapisanego pliku
+        try:
+            saved_df = pd.read_csv(filename)
+            print("Przykładowe dane z zapisanego pliku:")
+            print(saved_df.head(3))
+        except Exception as e:
+            print(f"Błąd przy odczycie zapisanego pliku: {e}")
+    else:
+        print(f"BŁĄD: Plik {filename} nie został utworzony!")
     
     return df
 
@@ -107,6 +130,15 @@ def update_repository():
     print(f"Rozpoczynanie aktualizacji kalendarza - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("Harmonogram aktualizacji: Poniedziałek i Środa o 00:20 UTC")
     
+    # Sprawdź obecny stan folderu data
+    if os.path.exists("data/ECONOMIC_CALENDAR.csv"):
+        print("Znaleziono istniejący plik ECONOMIC_CALENDAR.csv")
+        try:
+            existing_df = pd.read_csv("data/ECONOMIC_CALENDAR.csv")
+            print(f"Obecny plik zawiera {len(existing_df)} wydarzeń")
+        except Exception as e:
+            print(f"Błąd przy odczycie istniejącego pliku: {e}")
+    
     # Pobierz dane
     calendar_data = fetch_economic_calendar()
     
@@ -126,8 +158,10 @@ def update_repository():
             json.dump(metadata, f, indent=2)
             
         print("Aktualizacja zakończona pomyślnie!")
+        return True
     else:
         print("Nie udało się pobrać danych!")
+        return False
 
 if __name__ == "__main__":
     update_repository()
