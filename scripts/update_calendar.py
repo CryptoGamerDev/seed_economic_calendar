@@ -19,7 +19,7 @@ def fetch_economic_calendar():
         print("Przykładowe dane:")
         print(df.head(3))
         
-        # POPRAWKA: Konwersja daty i czasu z właściwego formatu
+        # Konwersja daty i czasu z właściwego formatu
         # Format: "09-29-2025" (Date) i "7:00am" (Time)
         def parse_datetime(date_str, time_str):
             try:
@@ -90,22 +90,22 @@ def next_scheduled_update():
     """Oblicza następną zaplanowaną aktualizację"""
     now = datetime.now()
     
-    # Jeśli dziś jest wtorek (1) lub czwartek (3) i przed 06:00
-    if now.weekday() in [1, 3] and now.hour < 6:
-        return now.replace(hour=6, minute=0, second=0, microsecond=0)
+    # Jeśli dziś jest poniedziałek (0) lub środa (2) i przed 00:20
+    if now.weekday() in [0, 2] and (now.hour < 0 or (now.hour == 0 and now.minute < 20)):
+        return now.replace(hour=0, minute=20, second=0, microsecond=0)
     
-    # Znajdź następny wtorek lub czwartek
+    # Znajdź następny poniedziałek lub środę
     days_ahead = 1
     while True:
         next_day = now + timedelta(days=days_ahead)
-        if next_day.weekday() in [1, 3]:  # Wtorek=1, Czwartek=3
-            return next_day.replace(hour=6, minute=0, second=0, microsecond=0)
+        if next_day.weekday() in [0, 2]:  # Poniedziałek=0, Środa=2
+            return next_day.replace(hour=0, minute=20, second=0, microsecond=0)
         days_ahead += 1
 
 def update_repository():
     """Główna funkcja aktualizująca repozytorium"""
     print(f"Rozpoczynanie aktualizacji kalendarza - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("Harmonogram aktualizacji: Wtorek i Czwartek o 06:00 UTC")
+    print("Harmonogram aktualizacji: Poniedziałek i Środa o 00:20 UTC")
     
     # Pobierz dane
     calendar_data = fetch_economic_calendar()
@@ -118,7 +118,7 @@ def update_repository():
         metadata = {
             'last_updated': datetime.now().isoformat(),
             'events_count': len(df),
-            'update_schedule': 'Every Tuesday and Thursday at 06:00 UTC',
+            'update_schedule': 'Every Monday and Wednesday at 00:20 UTC',
             'next_scheduled_update': next_scheduled_update().isoformat()
         }
         
