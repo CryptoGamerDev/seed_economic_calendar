@@ -12,17 +12,39 @@ def fetch_economic_calendar():
         response = requests.get(url)
         response.raise_for_status()
         
-        # POPRAWKA: Użyj io.StringIO zamiast pd.compat.StringIO
+        # Użyj io.StringIO do wczytania CSV
         df = pd.read_csv(io.StringIO(response.text))
         
-        # Konwersja daty i czasu
-        df['DateTime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'], format='%m-%d-%Y %I:%M%p')
-        df['Timestamp'] = df['DateTime'].astype(int) // 10**9  # Unix timestamp
+        print(f"Pobrano {len(df)} wydarzeń")
+        print("Przykładowe dane:")
+        print(df.head(3))
+        
+        # POPRAWKA: Konwersja daty i czasu z właściwego formatu
+        # Format: "09-29-2025" (Date) i "7:00am" (Time)
+        def parse_datetime(date_str, time_str):
+            try:
+                # Połącz datę i czas
+                datetime_str = f"{date_str} {time_str}"
+                # Parsuj z właściwym formatem
+                return pd.to_datetime(datetime_str, format='%m-%d-%Y %I:%M%p')
+            except Exception as e:
+                print(f"Błąd parsowania: {date_str} {time_str} - {e}")
+                return None
+        
+        df['DateTime'] = df.apply(lambda row: parse_datetime(row['Date'], row['Time']), axis=1)
+        
+        # Usuń wiersze z błędnymi datami
+        df = df.dropna(subset=['DateTime'])
+        
+        # Konwersja na timestamp
+        df['Timestamp'] = df['DateTime'].astype(int) // 10**9
+        
+        print(f"Poprawnie sparsowano {len(df)} wydarzeń")
         
         # Przygotowanie danych dla TradingView
         tv_data = []
         for _, row in df.iterrows():
-            # Używamy 'close' do przechowywania ważności wydarzenia (1-3)
+            # Mapowanie ważności na wartości numeryczne
             impact_value = {
                 'High': 3,
                 'Medium': 2, 
@@ -43,10 +65,16 @@ def fetch_economic_calendar():
         
     except Exception as e:
         print(f"Error fetching data: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return []
 
 def save_to_csv(data, filename="data/ECONOMIC_CALENDAR.csv"):
     """Zapisuje dane do formatu CSV dla TradingView"""
+    if not data:
+        print("Brak danych do zapisania!")
+        return None
+        
     df = pd.DataFrame(data)
     
     # Sortowanie według czasu
@@ -54,7 +82,7 @@ def save_to_csv(data, filename="data/ECONOMIC_CALENDAR.csv"):
     
     # Zapis do CSV
     df.to_csv(filename, index=False)
-    print(f"Data saved to {filename}")
+    print(f"Zapisano {len(df)} wydarzeń do {filename}")
     
     return df
 
@@ -76,8 +104,8 @@ def next_scheduled_update():
 
 def update_repository():
     """Główna funkcja aktualizująca repozytorium"""
-    print(f"Starting economic calendar update - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("Update schedule: Every Tuesday and Thursday at 06:00 UTC")
+    print(f"Rozpoczynanie aktualizacji kalendarza - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print("Harmonogram aktualizacji: Wtorek i Czwartek o 06:00 UTC")
     
     # Pobierz dane
     calendar_data = fetch_economic_calendar()
@@ -85,7 +113,6 @@ def update_repository():
     if calendar_data:
         # Zapisz dane
         df = save_to_csv(calendar_data)
-        print(f"Updated {len(df)} economic events")
         
         # Dodatkowo zapisz metadane
         metadata = {
@@ -98,9 +125,9 @@ def update_repository():
         with open('data/metadata.json', 'w') as f:
             json.dump(metadata, f, indent=2)
             
-        print("Update completed successfully!")
+        print("Aktualizacja zakończona pomyślnie!")
     else:
-        print("No data fetched!")
+        print("Nie udało się pobrać danych!")
 
 if __name__ == "__main__":
     update_repository()
