@@ -2,9 +2,9 @@ name: Update Economic Calendar
 
 on:
   schedule:
-    # Uruchamiaj co 6 godzin
-    - cron: '0 */6 * * *'
-  workflow_dispatch: # Ręczne uruchomienie
+    # Wtorek i czwartek o 06:00 UTC
+    - cron: '0 6 * * 2,4'
+  workflow_dispatch:
 
 jobs:
   update-calendar:
@@ -34,5 +34,5 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add data/
-        git commit -m "Auto-update economic calendar data" || exit 0
+        git commit -m "Auto-update: $(date +'%Y-%m-%d %H:%M:%S')" || exit 0
         git push
