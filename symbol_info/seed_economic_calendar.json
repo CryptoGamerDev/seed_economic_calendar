@@ -1,5 +1,9 @@
 {
-  "symbol": ["ECONOMIC_CALENDAR"],
-  "description": ["Economic Calendar Impact Events"],
+  "symbol": [
+    "ECONOMIC_CALENDAR"
+  ],
+  "description": [
+    "Economic Calendar Impact Events"
+  ],
   "pricescale": 1
 }
