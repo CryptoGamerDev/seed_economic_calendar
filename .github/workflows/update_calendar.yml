@@ -32,10 +32,17 @@ jobs:
       run: |
         python scripts/update_calendar.py
         
+    - name: Check for changes
+      id: git-check
+      run: |
+        git status
+        echo "::set-output name=changes::$(git status --porcelain)"
+        
     - name: Commit and push changes
+      if: steps.git-check.outputs.changes != ''
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add data/
-        git commit -m "Auto-update: $(date +'%Y-%m-%d %H:%M:%S')" || exit 0
+        git commit -m "Auto-update: $(date +'%Y-%m-%d %H:%M:%S')"
         git push
