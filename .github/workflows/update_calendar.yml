@@ -36,10 +36,15 @@ jobs:
       id: git-check
       run: |
         git status
-        echo "changes=$(git status --porcelain)" >> $GITHUB_OUTPUT
+        # Uproszczone sprawdzanie zmian - bez złożonego przetwarzania
+        if git diff --quiet; then
+          echo "HAS_CHANGES=false" >> $GITHUB_ENV
+        else
+          echo "HAS_CHANGES=true" >> $GITHUB_ENV
+        fi
         
     - name: Commit and push changes
-      if: steps.git-check.outputs.changes != ''
+      if: env.HAS_CHANGES == 'true'
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
