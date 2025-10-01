@@ -36,13 +36,13 @@ jobs:
       id: git-check
       run: |
         git status
-        echo "::set-output name=changes::$(git status --porcelain)"
+        echo "changes=$(git status --porcelain)" >> $GITHUB_OUTPUT
         
     - name: Commit and push changes
       if: steps.git-check.outputs.changes != ''
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add data/
+        git add symbol_info/ data/
         git commit -m "Auto-update: $(date +'%Y-%m-%d %H:%M:%S')"
         git push
