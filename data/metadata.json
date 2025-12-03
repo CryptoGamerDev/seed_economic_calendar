@@ -1,7 +1,7 @@
 {
-  "last_updated": "2025-12-01T02:39:38.692215",
+  "last_updated": "2025-12-03T02:20:12.413426",
   "days_count": 6,
-  "events_count": 106,
+  "events_count": 108,
   "data_format": "OHLCV",
   "impact_scale": "0=Holiday, 1=Low, 2=Medium, 3=High"
 }
